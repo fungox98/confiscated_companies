@@ -3,6 +3,7 @@
 library(readxl)
 library(tidyverse)
 library(dplyr)
+library(stringr)
 
 # Load dataset(s) ---------------------------------------------------------
 
@@ -17,7 +18,6 @@ ateco_nace_table <- read_excel("data/ateco_nace_table.xlsx")
 
 View(confiscated_companies)
 View(ateco_nace_table)
-
 
 # Dataset tidying ---------------------------------------------------------
 
@@ -35,11 +35,21 @@ colnames(confiscated_companies)[17] = "registration_province"
 colnames(confiscated_companies)[18] = "registration_number"
 colnames(confiscated_companies)[19] = "confiscation_status"
 
-#merging the two province variables
-confiscated_companies$province <- coalesce(
-  confiscated_companies$province, confiscated_companies$registration_province
-)
+# Merging the two province variables
+confiscated_companies <- confiscated_companies |> mutate(
+  province = coalesce(
+    province, registration_province
+    )
+  )
 
+# Add a variable with the year of the confiscation (or annulment) procedure
+
+confiscated_companies <- confiscated_companies |>
+  mutate(
+    year_confiscation_procedure = str_sub(
+      confiscation_status, -4, -1
+      )
+    )
 
 # Standardize ateco_nace codes and description ----------------------------
 
@@ -59,7 +69,7 @@ confiscated_companies <- merge(
   all.x = TRUE,
 )
 
-# reordering columns
+# $reordering columns
 col_order <- c(
   "name", "province", "activity_status","ateco_nace_code","ateco_description", 
   "nace_rev2_code", "category", "english_nace_description", "vat_number",
