@@ -6,6 +6,7 @@ library(dplyr)
 library(stringr)
 library(lubridate)
 library(ggplot2)
+library(forcats)
 library(scales)
 
 library(raster)
@@ -23,6 +24,7 @@ confiscated_companies <- read_excel(
   )
 
 ateco_nace_table <- read_excel("data/ateco_nace_table.xlsx")
+ateco_nace_macro_table <- read_excel("data/ateco_nace_macro_table.xlsx")
 
 total_companies <- read_excel("data/total_limited_companies_province.xls")
 
@@ -69,7 +71,7 @@ confiscated_companies <- confiscated_companies |>
       
                  
 # Create a variable with the date of the confiscation (or annulment) procedure
-#lubridate package is used to convert dates to yyyy-mm-dd format
+# lubridate package is used to convert dates to yyyy-mm-dd format
 confiscated_companies <- confiscated_companies |>
   mutate(
     date_confiscation_procedure = lubridate::dmy(
@@ -115,19 +117,49 @@ confiscated_companies <- merge(
   y = ateco_nace_table,
   by = "ateco_nace_subcode",
   all.x = TRUE,
-)
+  )
+
+
+# Merge NACE codes macro-description
+
+confiscated_companies <- merge(
+  x = confiscated_companies,
+  y = ateco_nace_macro_table,
+  by = "ateco_nace_code",
+  all.x = TRUE,
+  )
 
 # Reordering columns
 col_order <- c(
-  "name", "category", "province_code", "province", "region",
-  "activity_status", "confiscation_status",
-  "date_confiscation_procedure", "ateco_nace_code","ateco_description", 
-  "nace_rev2_code",  "english_nace_description", "vat_number",
-  "fiscal_code", "rea_piva_cf", "n_rea", "rea", "business_name", 
-  "legal_nature_code", "legal_nature_description", "ateco_subcode_description", 
-  "registration_province","registration_number","confiscation_status_description", 
-  "italian_nace_description", "ateco_nace_subcode", "notes"
-    )
+  "name", 
+  "category",
+  "province_code", 
+  "province",
+  "region",
+  "activity_status", 
+  "confiscation_status",
+  "date_confiscation_procedure",
+  "ateco_nace_code",
+  "english_nace_macro_description", 
+  "nace_rev2_code",
+  "ateco_nace_subcode",
+  "english_nace_description",
+  "italian_nace_description",
+  "ateco_subcode_description",
+  "vat_number",
+  "fiscal_code",
+  "rea_piva_cf",
+  "n_rea",
+  "rea",
+  "business_name", 
+  "legal_nature_code",
+  "legal_nature_description",
+  "registration_province",
+  "registration_number",
+  "confiscation_status_description",
+  "ateco_nace_subcode",
+  "notes"
+  )
 
 confiscated_companies <-  confiscated_companies[, col_order]
 
@@ -308,7 +340,12 @@ confiscated_companies <- confiscated_companies |>
 # View(duplicate_rows)
 
 
-# Geographic visualization ---------------------------------------------------
+# Data visualization ---------------------------------------------------
+
+## - Intensity map ----
+
+###  - * Province level ----
+
 
 # Get the map of Italy at the province level (year = 2021, as there is
 # correspondence with the province level in the dataset)
@@ -374,7 +411,7 @@ ggsave(
 )
 
 
-# Repeat at the region level
+###  - * Region level ----
 
 italy_regions <- gisco_get_nuts(
   year = "2021", 
@@ -439,3 +476,36 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
+
+
+## - Distribution by NACE code ----
+grouped_data <- confiscated_companies|> 
+  group_by(english_nace_macro_description) |> 
+  summarise(count = n()) |> 
+  arrange(desc(count))
+
+
+plot_sector <- 
+  ggplot(data = subset(
+    grouped_data,!is.na(english_nace_macro_description)),
+    aes(x = reorder(english_nace_macro_description, count), y = count)) +
+    geom_bar(stat = "identity", fill = "darkblue",color = "black", width = 0.75) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.05))) + # Adjust expansion here
+    xlab("") +
+    ylab("Number of firms") +
+    coord_flip() +
+    theme_minimal() + # Lighter background theme
+    ggtitle("Distribution of firms by sector of activity")
+    theme(
+      axis.text = element_text(size = 10, vjust = 0.7),
+      axis.ticks.y = element_blank(),
+      panel.grid.major.x = element_blank(),  # Remove horizontal grid lines
+      axis.line.y = element_blank()
+      )
+plot(plot_sector)
+ggsave(
+      "sector_of_activity.png",
+      path = "figures/",
+      dpi = 300,
+      bg = NULL
+    )
